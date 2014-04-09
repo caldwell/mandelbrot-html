@@ -54,10 +54,9 @@ Mandel.prototype.pixel = function(x,y) {
     var member = this.member(new complex(x/this.el.width  * this.r.span + this.r.min,
                                          y/this.el.height * this.i.span + this.i.min));
 
-    if (member == 1)
-        this.context.fillRect(x,y,1,1);
-    else
-        this.context.clearRect(x,y,1,1);
+    member = 1 - member;
+    this.context.fillStyle = "rgb("+Math.floor(member*255)+","+Math.floor(member*255)+","+Math.floor(member*255)+")";
+    this.context.fillRect(x,y,1,1);
 }
 
 Mandel.prototype.line = function(y) {
