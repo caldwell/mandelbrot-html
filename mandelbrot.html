@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Mandlebrot</title>
+    <style type="text/css">
+#mandelbrot-size {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+}
+    </style>
+  </head>
+  <body>
+
+    <div id="mandelbrot-size">
+      <canvas id="mandelbrot"></canvas>
+    </div>
+    <script>
+function complex(r,i) { this.r=r; this.i=i; }
+complex.prototype.add    = function(c) { this.r += c.r; this.i += c.i; return this; };
+complex.prototype.square = function()  { var r=this.r, i=this.i; this.r = r*r - i*i; this.i = 2*r*i; return this; };
+
+function Mandel(canvas_el) {
+    this.el = canvas_el;
+    this.context = this.el.getContext('2d');
+    this.zoom(0,0,.8);
+}
+Mandel.prototype.resize = function(max_x, max_y) {
+    this.size = Math.min(Math.floor(max_x/3),
+                         Math.floor(max_y/2));
+    this.el.width  = this.size*3;
+    this.el.height = this.size*2;
+}
+Mandel.prototype.zoom = function(center_x, center_y, zoom) {
+    this.r = { min: (center_x - 2) / zoom,
+               max: (center_x + 1) / zoom };
+    this.r.span = this.r.max - this.r.min;
+
+    this.i = { min: (center_y - 1) / zoom,
+               max: (center_y + 1) / zoom };
+    this.i.span = this.i.max - this.i.min;
+}
+
+Mandel.prototype.member = function(c) {
+    var a = new complex(c.r, c.i);
+    for (var iter=0; iter<100 && Math.abs(a.r) < 10 && Math.abs(a.i) < 10; iter++)
+        a.square().add(c);
+    return iter/100;
+}
+
+Mandel.prototype.pixel = function(x,y) {
+    var member = this.member(new complex(x/this.el.width  * this.r.span + this.r.min,
+                                         y/this.el.height * this.i.span + this.i.min));
+
+    if (member == 1)
+        this.context.fillRect(x,y,1,1);
+    else
+        this.context.clearRect(x,y,1,1);
+}
+
+Mandel.prototype.line = function(y) {
+    for (var x=0; x<this.el.width; x++)
+        this.pixel(x,y);
+}
+
+Mandel.prototype.draw = function() {
+    var y = 0;
+    var me = this;
+    var iter = function() {
+        me.line(y);
+        y++;
+        if (y < me.el.height)
+            me.drawer = setTimeout(iter, 0);
+    }
+    iter();
+}
+Mandel.prototype.redraw = function() {
+    if (this.drawer)
+        clearTimeout(this.drawer);
+    this.draw();
+}
+
+var mandel = new Mandel(document.getElementById("mandelbrot"));
+window.onresize = function() {
+    var sizer = document.getElementById("mandelbrot-size");
+    mandel.resize(sizer.clientWidth,
+                  sizer.clientHeight);
+    mandel.redraw();
+}
+window.onresize();
+
+    </script>
+
+  <address>
+    <a href="mailto:david@porkrind.org">David Caldwell</a>
+  </address>
+  </body>
+</html>
