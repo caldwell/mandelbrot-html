@@ -65,6 +65,8 @@ Mandel.prototype.line = function(y) {
 }
 
 Mandel.prototype.draw = function() {
+    if (this.drawer)
+        clearTimeout(this.drawer);
     var y = 0;
     var me = this;
     var iter = function() {
@@ -75,18 +77,13 @@ Mandel.prototype.draw = function() {
     }
     iter();
 }
-Mandel.prototype.redraw = function() {
-    if (this.drawer)
-        clearTimeout(this.drawer);
-    this.draw();
-}
 
 var mandel = new Mandel(document.getElementById("mandelbrot"));
 window.onresize = function() {
     var sizer = document.getElementById("mandelbrot-size");
     mandel.resize(sizer.clientWidth,
                   sizer.clientHeight);
-    mandel.redraw();
+    mandel.draw();
 }
 window.onresize();
 
