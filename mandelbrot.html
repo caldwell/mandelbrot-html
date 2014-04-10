@@ -67,6 +67,7 @@ Mandel.prototype.line = function(y) {
 Mandel.prototype.draw = function() {
     if (this.drawer)
         clearTimeout(this.drawer);
+    this.start = Date.now();
     var y = 0;
     var me = this;
     var iter = function() {
@@ -77,6 +78,8 @@ Mandel.prototype.draw = function() {
         } while (y < me.el.height && Date.now() - start < 100);
         if (y < me.el.height)
             me.drawer = setTimeout(iter, 0);
+        else
+            console.log(Date.now() - me.start);
     }
     iter();
 }
