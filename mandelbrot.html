@@ -70,8 +70,11 @@ Mandel.prototype.draw = function() {
     var y = 0;
     var me = this;
     var iter = function() {
-        me.line(y);
-        y++;
+        var start = Date.now();
+        do {
+            me.line(y);
+            y++;
+        } while (y < me.el.height && Date.now() - start < 100);
         if (y < me.el.height)
             me.drawer = setTimeout(iter, 0);
     }
