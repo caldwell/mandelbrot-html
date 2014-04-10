@@ -45,10 +45,13 @@ function Mandelbrot(stdlib, foreign, heap) {
         return +((+(iter>>0))/(+(max>>0)));
     }
 
-    function line(crs, cis, inc, n) {
+    function line(crs, cis, cr_inc, ci_inc, fb_off, fb_inc, n) {
         crs = +crs;
         cis = +cis;
-        inc = +inc;
+        cr_inc = +cr_inc;
+        ci_inc = +ci_inc;
+        fb_off = fb_off|0;
+        fb_inc = fb_inc|0;
         n = n|0;
 
         var cr=0.0, ci=0.0, i=0, memb=0;
@@ -56,12 +59,14 @@ function Mandelbrot(stdlib, foreign, heap) {
         ci = cis;
         for (i=0; i>>0 < n>>0; i = (i>>0) + 1>>0) {
             memb = ~~(+member(cr,ci) * 255.0);
-            heapb[((i<<2)+0)>>0] = 255-memb; // r
-            heapb[((i<<2)+1)>>0] = memb; // g
-            heapb[((i<<2)+2)>>0] = memb; // b
-            heapb[((i<<2)+3)>>0] = 255;  // a
+            heapb[((fb_off<<2)+0)>>0] = 255-memb; // r
+            heapb[((fb_off<<2)+1)>>0] = memb; // g
+            heapb[((fb_off<<2)+2)>>0] = memb; // b
+            heapb[((fb_off<<2)+3)>>0] = 255;  // a
 
-            cr = +cr + +inc;
+            cr = +cr + +cr_inc;
+            ci = +ci + +ci_inc;
+            fb_off = (fb_off|0) + (fb_inc|0) |0;
         }
     }
 
@@ -79,8 +84,10 @@ Mandel.prototype.resize = function(max_x, max_y) {
                          Math.floor(max_y/2));
     this.el.width  = this.size*3;
     this.el.height = this.size*2;
-    this.linebuffer = this.context.getImageData(0, 0, this.el.width, 1);
-    this.linebuf8 = new ArrayBuffer((this.linebuffer.data.length + 4095) & ~4095);
+    this.linebuffer = this.context.getImageData(0, 0, this.el.width, this.el.height);
+    for (var asm_js_size=4096; asm_js_size < (1<<30) && asm_js_size < this.linebuffer.data.length; asm_js_size *= 2)
+        ;
+    this.linebuf8  = new ArrayBuffer(asm_js_size);
     this.fast = Mandelbrot(window, {}, this.linebuf8);
 }
 Mandel.prototype.zoom = function(center_x, center_y, zoom) {
@@ -97,10 +104,14 @@ Mandel.prototype.zoom = function(center_x, center_y, zoom) {
 Mandel.prototype.line = function(y) {
     this.fast.line(this.r.min,
                    y/this.el.height * this.i.span + this.i.min,
-                   this.r.span / this.el.width,
+                   this.r.span / this.el.width, 0,
+                   this.el.width * y, 1,
                    this.el.width);
+}
+
+Mandel.prototype.blit = function() {
     this.linebuffer.data.set(new Uint8Array(this.linebuf8, 0, this.linebuffer.data.length));
-    this.context.putImageData(this.linebuffer, 0, y);
+    this.context.putImageData(this.linebuffer, 0, 0);
 }
 
 Mandel.prototype.draw = function() {
@@ -115,6 +126,7 @@ Mandel.prototype.draw = function() {
             me.line(y);
             y++;
         } while (y < me.el.height && Date.now() - start < 100);
+        me.blit();
         if (y < me.el.height)
             me.drawer = setTimeout(iter, 0);
         else
