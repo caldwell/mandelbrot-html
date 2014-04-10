@@ -22,6 +22,8 @@
 function Mandelbrot(stdlib, foreign, heap) {
     "use asm";
 
+   var heapb = new stdlib.Uint8Array(heap);
+
     function member(cr, ci) {
         cr = +cr;
         ci = +ci;
@@ -43,13 +45,29 @@ function Mandelbrot(stdlib, foreign, heap) {
         return +((+(iter>>0))/(+(max>>0)));
     }
 
-    return { member: member };
+    function line(crs, cis, inc, n) {
+        crs = +crs;
+        cis = +cis;
+        inc = +inc;
+        n = n|0;
+
+        var cr=0.0, ci=0.0, i=0, memb=0;
+        cr = crs;
+        ci = cis;
+        for (i=0; i>>0 < n>>0; i = (i>>0) + 1>>0) {
+            memb = ~~(+member(cr,ci) * 255.0);
+            heapb[((i<<2)+0)>>0] = 255-memb; // r
+            heapb[((i<<2)+1)>>0] = memb; // g
+            heapb[((i<<2)+2)>>0] = memb; // b
+            heapb[((i<<2)+3)>>0] = 255;  // a
+
+            cr = +cr + +inc;
+        }
+    }
+
+    return { member: member, line: line };
 }
 
-
-function complex(r,i) { this.r=r; this.i=i; }
-complex.prototype.add    = function(c) { this.r += c.r; this.i += c.i; return this; };
-complex.prototype.square = function()  { var r=this.r, i=this.i; this.r = r*r - i*i; this.i = 2*r*i; return this; };
 
 function Mandel(canvas_el) {
     this.el = canvas_el;
@@ -62,7 +80,8 @@ Mandel.prototype.resize = function(max_x, max_y) {
     this.el.width  = this.size*3;
     this.el.height = this.size*2;
     this.linebuffer = this.context.getImageData(0, 0, this.el.width, 1);
-    this.fast = Mandelbrot(window, {}, []);
+    this.linebuf8 = new ArrayBuffer((this.linebuffer.data.length + 4095) & ~4095);
+    this.fast = Mandelbrot(window, {}, this.linebuf8);
 }
 Mandel.prototype.zoom = function(center_x, center_y, zoom) {
     this.r = { min: (center_x - 2) / zoom,
@@ -74,26 +93,13 @@ Mandel.prototype.zoom = function(center_x, center_y, zoom) {
     this.i.span = this.i.max - this.i.min;
 }
 
-Mandel.prototype.member = function(c) {
-    return this.fast.member(c.r,c.i);
-}
-
-Mandel.prototype.pixel = function(x,y) {
-    var member = this.member(new complex(x/this.el.width  * this.r.span + this.r.min,
-                                         y/this.el.height * this.i.span + this.i.min));
-
-    member = 1 - member;
-    return { r:member, g:member, b:member, a:1 };
-}
 
 Mandel.prototype.line = function(y) {
-    for (var x=0, i=0; x<this.el.width; x++) {
-        var c = this.pixel(x,y);
-        this.linebuffer.data[i++] = Math.floor(c.r*255);
-        this.linebuffer.data[i++] = Math.floor(255-c.g*255);
-        this.linebuffer.data[i++] = Math.floor(c.b*255);
-        this.linebuffer.data[i++] = Math.floor(c.a*255);
-    }
+    this.fast.line(this.r.min,
+                   y/this.el.height * this.i.span + this.i.min,
+                   this.r.span / this.el.width,
+                   this.el.width);
+    this.linebuffer.data.set(new Uint8Array(this.linebuf8, 0, this.linebuffer.data.length));
     this.context.putImageData(this.linebuffer, 0, y);
 }
 
