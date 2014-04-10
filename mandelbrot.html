@@ -32,6 +32,7 @@ Mandel.prototype.resize = function(max_x, max_y) {
                          Math.floor(max_y/2));
     this.el.width  = this.size*3;
     this.el.height = this.size*2;
+    this.linebuffer = this.context.getImageData(0, 0, this.el.width, 1);
 }
 Mandel.prototype.zoom = function(center_x, center_y, zoom) {
     this.r = { min: (center_x - 2) / zoom,
@@ -55,13 +56,18 @@ Mandel.prototype.pixel = function(x,y) {
                                          y/this.el.height * this.i.span + this.i.min));
 
     member = 1 - member;
-    this.context.fillStyle = "rgb("+Math.floor(member*255)+","+Math.floor(member*255)+","+Math.floor(member*255)+")";
-    this.context.fillRect(x,y,1,1);
+    return { r:member, g:member, b:member, a:1 };
 }
 
 Mandel.prototype.line = function(y) {
-    for (var x=0; x<this.el.width; x++)
-        this.pixel(x,y);
+    for (var x=0, i=0; x<this.el.width; x++) {
+        var c = this.pixel(x,y);
+        this.linebuffer.data[i++] = Math.floor(c.r*255);
+        this.linebuffer.data[i++] = Math.floor(255-c.g*255);
+        this.linebuffer.data[i++] = Math.floor(c.b*255);
+        this.linebuffer.data[i++] = Math.floor(c.a*255);
+    }
+    this.context.putImageData(this.linebuffer, 0, y);
 }
 
 Mandel.prototype.draw = function() {
