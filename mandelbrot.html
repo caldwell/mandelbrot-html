@@ -18,6 +18,35 @@
       <canvas id="mandelbrot"></canvas>
     </div>
     <script>
+
+function Mandelbrot(stdlib, foreign, heap) {
+    "use asm";
+
+    function member(cr, ci) {
+        cr = +cr;
+        ci = +ci;
+
+        var ar = 0.0, ai=0.0, r=0.0, i=0.0, iter=0, max=100;
+
+        ar = cr, ai=ci;
+        for (iter=0;
+             (iter>>0 < max>>0) &
+             ((ar < 10.0) | (ar > 1.0)) &
+             ((ai < 10.0) | (ai > 1.0));
+             // ((+stdlib.Math.abs(ar)) < 10.0) &
+             // ((+stdlib.Math.abs(ai)) < 10.0);
+             iter = (iter>>0) + 1>>0) {
+            r=ar, i=ai;
+            ar = r*r - i*i + cr;
+            ai = 2.0*r*i + ci;
+        }
+        return +((+(iter>>0))/(+(max>>0)));
+    }
+
+    return { member: member };
+}
+
+
 function complex(r,i) { this.r=r; this.i=i; }
 complex.prototype.add    = function(c) { this.r += c.r; this.i += c.i; return this; };
 complex.prototype.square = function()  { var r=this.r, i=this.i; this.r = r*r - i*i; this.i = 2*r*i; return this; };
@@ -33,6 +62,7 @@ Mandel.prototype.resize = function(max_x, max_y) {
     this.el.width  = this.size*3;
     this.el.height = this.size*2;
     this.linebuffer = this.context.getImageData(0, 0, this.el.width, 1);
+    this.fast = Mandelbrot(window, {}, []);
 }
 Mandel.prototype.zoom = function(center_x, center_y, zoom) {
     this.r = { min: (center_x - 2) / zoom,
@@ -45,10 +75,7 @@ Mandel.prototype.zoom = function(center_x, center_y, zoom) {
 }
 
 Mandel.prototype.member = function(c) {
-    var a = new complex(c.r, c.i);
-    for (var iter=0; iter<100 && Math.abs(a.r) < 10 && Math.abs(a.i) < 10; iter++)
-        a.square().add(c);
-    return iter/100;
+    return this.fast.member(c.r,c.i);
 }
 
 Mandel.prototype.pixel = function(x,y) {
