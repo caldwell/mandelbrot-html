@@ -45,6 +45,17 @@ function Mandelbrot(stdlib, foreign, heap) {
         return +((+(iter>>0))/(+(max>>0)));
     }
 
+    function set_pixel(fb_off, memb) {
+        fb_off = fb_off |0;
+        memb   = memb   |0;
+
+        heapb[((fb_off<<2)+0)>>0] = 255-memb; // r
+        heapb[((fb_off<<2)+1)>>0] = memb & 2 ? memb|0 : (255-memb)|0; // g
+        //heapb[((fb_off<<2)+1)>>0] = memb; // g
+        heapb[((fb_off<<2)+2)>>0] = memb; // b
+        heapb[((fb_off<<2)+3)>>0] = 255;  // a
+    }
+
     function line(crs, cis, cr_inc, ci_inc, fb_off, fb_inc, n) {
         crs = +crs;
         cis = +cis;
@@ -77,7 +88,7 @@ function Mandelbrot(stdlib, foreign, heap) {
 function Mandel(canvas_el) {
     this.el = canvas_el;
     this.context = this.el.getContext('2d');
-    this.zoom(0,0,.8);
+    this.zoom(.0001,.0001,.8);
 }
 Mandel.prototype.resize = function(max_x, max_y) {
     var ratio = window.devicePixelRatio || 1;
