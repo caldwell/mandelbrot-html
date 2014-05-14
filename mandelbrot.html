@@ -359,7 +359,7 @@ MandelGL.prototype.draw = function() {
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     gl.finish();
-    console.log(Date.now() - start);
+    console.log("render time:", Date.now() - start + "ms");
 }
 
     </script>
