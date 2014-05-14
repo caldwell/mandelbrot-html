@@ -163,6 +163,16 @@ Mandel.prototype.zoom = function(center, x) {
     this.pix__coord *= x;
     this.setup_coords();
 }
+Mandel.prototype.distance_from_pixels = function(pixel) {
+    return { r: pixel.x / this.pix__coord,
+             i: pixel.y / this.pix__coord }
+}
+Mandel.prototype.coords_from_pixels = function(pixel) {
+    var distance = this.distance_from_pixels(pixel);
+    console.log("distance", distance);
+    return { r: this.r.min + distance.r,
+             i: this.i.max - distance.i /* pixel (0,0) is top left */}
+}
 Mandel.prototype.line = function(y) {
     this.fast.line(this.r.min,
                    y/this.canvas.height * this.i.span + this.i.min,
@@ -212,7 +222,14 @@ function MandelGL(canvas) {
     this.center = { r:-.5001, i:.0001 };
 }
 MandelGL.prototype.setup_coords = Mandel.prototype.setup_coords;
-MandelGL.prototype.zoom = Mandel.prototype.zoom;
+MandelGL.prototype.distance_from_pixels = Mandel.prototype.distance_from_pixels;
+MandelGL.prototype.coords_from_pixels = Mandel.prototype.coords_from_pixels;
+MandelGL.prototype.zoom = function(center, x) {
+    this.center = center;
+    this.pix__coord *= x;
+    this.setup_coords();
+    this.draw();
+}
 
 MandelGL.prototype.resize = function(max_x, max_y) {
     var ratio = window.devicePixelRatio || 1;
@@ -499,6 +516,31 @@ window.onresize = function() {
     mandel.draw();
 }
 window.onresize();
+
+mandel.canvas.ondblclick = function(event) {
+    var center = mandel.coords_from_pixels({ x: event.clientX, y: event.clientY });
+    mandel.zoom(center, 3);
+};
+
+mandel.canvas.ontouchstart = mandel.canvas.onmousedown = function(event) {
+    var start = { pix: { x: event.clientX, y: event.clientY },
+                  center: mandel.center };
+    mandel.canvas.ontouchmove = mandel.canvas.onmousemove = function(event) {
+        var distance = mandel.distance_from_pixels({x: start.pix.x-event.clientX,
+                                                    y: event.clientY-start.pix.y});
+        mandel.zoom({ r: start.center.r + distance.r,
+                      i: start.center.i + distance.i },
+                    1);
+    }
+    mandel.canvas.ontouchend = mandel.canvas.onmouseup = function(event) {
+        mandel.canvas.onmouseup = mandel.canvas.onmousemove = void 0;
+    }
+}
+
+mandel.canvas.onwheel = function(event) {
+    mandel.zoom(mandel.center, Math.pow(2, event.deltaY/mandel.canvas.clientHeight));
+    event.preventDefault();
+}
 
     </script>
 
