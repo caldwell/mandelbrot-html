@@ -301,7 +301,6 @@ MandelGL.prototype.configure = function() {
                gl.vertexAttribPointer(first_pass.vertex_position, 3, gl.FLOAT, false, 0, 0);
 
                set_uniform_matrix(gl, first_pass.uniform.p_matrix, Matrix.I(4));
-               set_uniform_matrix(gl, first_pass.uniform.mv_matrix, makeOrtho(this.r.min, this.r.max, this.i.min, this.i.max, -1000, 1000));
            }.bind(this)
     });
 }
@@ -316,6 +315,8 @@ MandelGL.prototype.draw = function() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     gl.useProgram(first_pass.program);
+
+    set_uniform_matrix(gl, first_pass.uniform.mv_matrix, makeOrtho(this.r.min, this.r.max, this.i.min, this.i.max, -1000, 1000));
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     gl.finish();
