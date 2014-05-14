@@ -163,6 +163,7 @@ Mandel.prototype.zoom = function(center, x) {
     this.pix__coord *= x;
     this.setup_coords();
 }
+Mandel.prototype.zoomto = Mandel.prototype.zoom;
 Mandel.prototype.distance_from_pixels = function(pixel) {
     return { r: pixel.x / this.pix__coord,
              i: pixel.y / this.pix__coord }
@@ -229,6 +230,27 @@ MandelGL.prototype.zoom = function(center, x) {
     this.pix__coord *= x;
     this.setup_coords();
     this.draw();
+}
+MandelGL.prototype.zoomto = function(center, x) {
+    var anim = { src:  { pix__coord: this.pix__coord,
+                         center: this.center },
+                 dest: { pix__coord: this.pix__coord * x,
+                         center: center },
+                 start: Date.now(),
+                 duration: 2000
+               };
+
+    var step = function() {
+        var elapsed = Math.min(Date.now() - anim.start, anim.duration);
+        this.zoom({ r: anim.src.center.r + (anim.dest.center.r - anim.src.center.r) / anim.duration * elapsed,
+                    i: anim.src.center.i + (anim.dest.center.i - anim.src.center.i) / anim.duration * elapsed },
+                  (anim.src.pix__coord + (anim.dest.pix__coord - anim.src.pix__coord) / anim.duration * elapsed) / this.pix__coord);
+        this.draw();
+        if (elapsed < anim.duration)
+            requestAnimationFrame(step);
+    }.bind(this);
+
+    requestAnimationFrame(step);
 }
 
 MandelGL.prototype.resize = function(max_x, max_y) {
@@ -519,7 +541,7 @@ window.onresize();
 
 mandel.canvas.ondblclick = function(event) {
     var center = mandel.coords_from_pixels({ x: event.clientX, y: event.clientY });
-    mandel.zoom(center, 3);
+    mandel.zoomto(center, 3);
 };
 
 mandel.canvas.ontouchstart = mandel.canvas.onmousedown = function(event) {
