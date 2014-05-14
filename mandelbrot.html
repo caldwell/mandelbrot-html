@@ -560,7 +560,7 @@ mandel.canvas.ontouchstart = mandel.canvas.onmousedown = function(event) {
 }
 
 mandel.canvas.onwheel = function(event) {
-    mandel.zoom(mandel.center, Math.pow(2, event.deltaY/mandel.canvas.clientHeight));
+    mandel.zoom(mandel.center, Math.pow(2, -event.deltaY/mandel.canvas.clientHeight));
     event.preventDefault();
 }
 
