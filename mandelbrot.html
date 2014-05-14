@@ -17,6 +17,47 @@
     <div id="mandelbrot-size">
       <canvas id="mandelbrot"></canvas>
     </div>
+
+
+    <script id="boring-matrix-vertex-shader" type="text/glsl">
+attribute vec3 vertex_position;
+varying vec2 mandel_coord;
+
+uniform mat4 mv_matrix;
+uniform mat4 p_matrix;
+
+void main(void) {
+    gl_Position = p_matrix * mv_matrix * vec4(vertex_position, 1.0);
+    mandel_coord = vertex_position.xy;
+}
+    </script>
+
+
+    <script id="mandelbrot-fragment-shader" type="text/glsl">
+precision highp float;
+
+uniform sampler2D color_table;
+
+varying vec2 mandel_coord;
+
+void main(void) {
+    float ar = mandel_coord.x;
+    float ai = mandel_coord.y;
+    int iter=0;
+    // This, sadly, does not work, despite it being valid in GLSL ES (see https://www.khronos.org/registry/gles/specs/2.0/GLSL_ES_Specification_1.0.17.pdf)
+    // for (iter=0; iter < 100 && ar*ar + ai*ai > 4.0; iter++) {
+    for (int it=0; it<256; it++) {
+        iter = it;
+        if (ar*ar + ai*ai > 4.0)
+             break;
+        float r=ar, i=ai;
+        ar = r*r - i*i + mandel_coord.x;
+        ai = 2.0*r*i + mandel_coord.y;
+    }
+    gl_FragColor = texture2DProj(color_table, vec3(iter, 0.0, 256.0));
+}
+
+    </script>
     <script id="mandelbrot-asmjs" type="text/javascript">
 
 function Mandelbrot(stdlib, foreign, heap) {
@@ -150,6 +191,291 @@ Mandel.prototype.draw = function() {
     iter();
 }
 </script>
+
+<script id="mandelbrot-webgl" type="text/javascript">
+
+function MandelGL(canvas) {
+    this.canvas = canvas;
+    for (var name in { "webgl":0, "experimental-webgl":0, "webkit-3d":0, "moz-webgl":0 })
+        try {
+            this.gl = this.canvas.getContext(name);
+            if (this.gl) break;
+        } catch(e) {};
+    if (!this.gl)
+        return null; // Not supported in this browser.
+    this.zoom(.0001,.0001,.8);
+}
+MandelGL.prototype.zoom = Mandel.prototype.zoom;
+
+MandelGL.prototype.resize = function(max_x, max_y) {
+    var ratio = window.devicePixelRatio || 1;
+    this.size = Math.min(Math.floor(max_x/3),
+                         Math.floor(max_y/2));
+    this.canvas.style.width  = this.size*3 + "px";
+    this.canvas.style.height = this.size*2 + "px";
+    this.canvas.width  = this.size*3 * ratio;
+    this.canvas.height = this.size*2 * ratio;
+
+    this.configure()
+}
+
+MandelGL.prototype.configure = function() {
+    var gl = this.gl, canvas = this.canvas;
+
+    gl.viewport(0,0, canvas.width,canvas.height);
+    gl.clearColor(0.0, 0.0, 0.3, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+
+    var next_texture_unit=0;
+    var powers_of_2 = {1:1, 2:1, 4:1, 8:1, 16:1, 32:1, 64:1, 128:1, 256:1, 512:1, 1024:1, 2048:1, 4096:1, 8192:1};
+
+    var new_texture = function(width, height, format, data) {
+        if (!powers_of_2[width]) throw("Not a power of two: "+width);
+        if (!powers_of_2[height]) throw("Not a power of two: "+height);
+        var texture = gl.createTexture();
+        gl.activeTexture(gl.TEXTURE0 + next_texture_unit);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, format, width, height, 0, format, gl.UNSIGNED_BYTE, data || null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        //gl.generateMipmap(gl.TEXTURE_2D);
+        return { texture: texture, tex_unit: next_texture_unit++, format: format, geometry: { width:width, height:height } };
+    }
+
+    var data_texture = function(length /*power of 2!*/, height) {
+        if (!height) height = 1;
+        return new_texture(length/height, height, gl.LUMINANCE);
+    }
+    var set_texture_data = function(texture, data) {
+        gl.activeTexture(gl.TEXTURE0 + texture.tex_unit);
+        var byte_data = new Uint8Array(texture.geometry.width * texture.geometry.height);
+        byte_data.set(data);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, texture.geometry.width, texture.geometry.height, texture.format, gl.UNSIGNED_BYTE, byte_data);
+    }
+
+    var color_table_texture = function(colors) {
+        return new_texture(colors.length/3, 1, gl.RGB, new Uint8Array(colors));
+    }
+
+    var colors = [];
+    for (var i=0; i<256; i++) {
+        colors[i*3+0] = 255-i; // r
+        colors[i*3+1] = i & 2 ? i : 255-i; // g
+        colors[i*3+2] = i; // b
+    }
+
+    var color_texture = color_table_texture(colors);
+
+    var squareVerticesBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, squareVerticesBuffer);
+    var vertices = [   -10,   -10, 0,
+                       +10,   -10, 0,
+                       -10,   +10, 0,
+                       +10,   +10, 0
+                   ];
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+
+    gl_program(gl, {
+        shaders:    { "#mandelbrot-fragment-shader"  : gl.FRAGMENT_SHADER,
+                      "#boring-matrix-vertex-shader" : gl.VERTEX_SHADER },
+        uniforms:   ['p_matrix', 'mv_matrix', 'r', 'i'],
+        attributes: ['vertex_position'],
+        init:       { color_table: color_texture.tex_unit },
+        callback:
+           function(program, error) {
+               if (error) return console.log("Errors in 1st pass!\n", error);
+               var first_pass = this.first_pass = program;
+
+               gl.enableVertexAttribArray(first_pass.vertex_position);
+               gl.vertexAttribPointer(first_pass.vertex_position, 3, gl.FLOAT, false, 0, 0);
+
+               set_uniform_matrix(gl, first_pass.uniform.p_matrix, Matrix.I(4));
+               set_uniform_matrix(gl, first_pass.uniform.mv_matrix, makeOrtho(this.r.min, this.r.max, this.i.min, this.i.max, -1000, 1000));
+           }.bind(this)
+    });
+}
+
+MandelGL.prototype.draw = function() {
+    var start = Date.now();
+    var gl = this.gl, first_pass = this.first_pass;
+
+    if (!first_pass) return; // Shaders not initialized yet.
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    gl.useProgram(first_pass.program);
+
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.finish();
+    console.log(Date.now() - start);
+}
+
+    </script>
+
+    <script id="webgl-utils" type="text/javascript">
+
+function compile_shader(gl, type, source, f) {
+    var shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
+        f(undefined, gl.getShaderInfoLog(shader));
+    else
+        f(shader);
+}
+
+function load_shader(gl, type, url, f) {
+    if (url.match(/^#.*$/)) {
+        var el = document.getElementById(url.substr(1));
+        if (!el)
+            return f(undefined, "No element found with id="+url.substr(1));
+        compile_shader(gl, type, el.textContent, f);
+    } else
+        loadText(url, function(shader_source, error, status) {
+            if (error) return f(undefined, error, status);
+            compile_shader(gl, type, shader_source, f);
+        });
+}
+
+function load_fragment_shader(gl, url, f) { return load_shader(gl, gl.FRAGMENT_SHADER, url, f) }
+function load_vertex_shader(gl, url, f)   { return load_shader(gl, gl.VERTEX_SHADER,   url, f) }
+
+function gl_program(gl, params) {
+    var compiled_shaders = [];
+    var load_next_shader = function() {
+        for (var name in params.shaders)
+            break;
+        if (name) {
+            var type = params.shaders[name];
+            delete params.shaders[name];
+            load_shader(gl, type, name, function(compiled, error, status) {
+                if (error) return params.callback(undefined, name + ": " + (error || "unknown"));
+                compiled_shaders.push(compiled);
+                load_next_shader();
+            });
+        } else {
+            // All shaders compiled. Time to link.
+            var program = { program:   gl.createProgram(),
+                            uniform:   {},
+                            attribute: {} };
+            for (var s in compiled_shaders)
+                gl.attachShader(program.program, compiled_shaders[s]);
+            gl.linkProgram(program.program);
+
+            if (!gl.getProgramParameter(program.program, gl.LINK_STATUS))
+                return params.callback(undefined, "Shader program failed link stage");
+
+            gl.useProgram(program.program);
+
+            for (var u=0; u<params.uniforms.length; u++)
+                program.uniform[params.uniforms[u]]  = gl.getUniformLocation(program.program, params.uniforms[u]);
+            for (var a=0; a<params.attributes.length; a++)
+                program.attribute[params.attributes[a]]  = gl.getAttribLocation(program.program, params.attributes[a]);
+            for (var name in params.init)
+                gl.uniform1i(gl.getUniformLocation(program.program, name), params.init[name]);
+
+            params.callback(program);
+
+            // for (var i=0; ; i++) {
+            //     var u = gl.getActiveUniform(program, i);
+            //     if (!u) break;
+            //     console.log("%d: %s %d %d\n", i, u.name, u.type, u.size);
+            // }
+
+        }
+    }
+    load_next_shader();
+}
+
+function set_uniform_matrix(gl, uniform, matrix) {
+    gl.uniformMatrix4fv(uniform, false, new Float32Array(matrix.flatten()));
+}
+
+
+    </script>
+
+    <script id="sylvester-minimal" type="text/javascript">
+function Matrix() {}
+Matrix.prototype = {
+
+  setElements: function(els) {
+    var i, elements = els.elements || els;
+    if (typeof(elements[0][0]) != 'undefined') {
+      var ni = elements.length, ki = ni, nj, kj, j;
+      this.elements = [];
+      do { i = ki - ni;
+        nj = elements[i].length; kj = nj;
+        this.elements[i] = [];
+        do { j = kj - nj;
+          this.elements[i][j] = elements[i][j];
+        } while (--nj);
+      } while(--ni);
+      return this;
+    }
+    var n = elements.length, k = n;
+    this.elements = [];
+    do { i = k - n;
+      this.elements.push([elements[i]]);
+    } while (--n);
+    return this;
+  }
+};
+
+// Constructor function
+Matrix.create = function(elements) {
+  var M = new Matrix();
+  return M.setElements(elements);
+};
+
+// Identity matrix of size n
+Matrix.I = function(n) {
+  var els = [], k = n, i, nj, j;
+  do { i = k - n;
+    els[i] = []; nj = k;
+    do { j = k - nj;
+      els[i][j] = (i == j) ? 1 : 0;
+    } while (--nj);
+  } while (--n);
+  return Matrix.create(els);
+};
+
+// Utility functions
+var $M = Matrix.create;
+    </script>
+
+
+    <script id="glUtils" type="text/javascript">
+Matrix.prototype.flatten = function ()
+{
+    var result = [];
+    if (this.elements.length == 0)
+        return [];
+
+
+    for (var j = 0; j < this.elements[0].length; j++)
+        for (var i = 0; i < this.elements.length; i++)
+            result.push(this.elements[i][j]);
+    return result;
+}
+
+//
+// glOrtho
+//
+function makeOrtho(left, right,
+                   bottom, top,
+                   znear, zfar)
+{
+    var tx = -(right+left)/(right-left);
+    var ty = -(top+bottom)/(top-bottom);
+    var tz = -(zfar+znear)/(zfar-znear);
+
+    return $M([[2/(right-left), 0, 0, tx],
+               [0, 2/(top-bottom), 0, ty],
+               [0, 0, -2/(zfar-znear), tz],
+               [0, 0, 0, 1]]);
+}
+    </script>
 
 
     <script id="main" type="text/javascript">
