@@ -86,20 +86,20 @@ function Mandelbrot(stdlib, foreign, heap) {
 
 
 function Mandel(canvas_el) {
-    this.el = canvas_el;
-    this.context = this.el.getContext('2d');
+    this.canvas = canvas_el;
+    this.context = this.canvas.getContext('2d');
     this.zoom(.0001,.0001,.8);
 }
 Mandel.prototype.resize = function(max_x, max_y) {
     var ratio = window.devicePixelRatio || 1;
     this.size = Math.min(Math.floor(max_x/3),
                          Math.floor(max_y/2));
-    this.el.style.width  = this.size*3 + "px";
-    this.el.style.height = this.size*2 + "px";
-    this.el.width  = this.size*3 * ratio;
-    this.el.height = this.size*2 * ratio;
+    this.canvas.style.width  = this.size*3 + "px";
+    this.canvas.style.height = this.size*2 + "px";
+    this.canvas.width  = this.size*3 * ratio;
+    this.canvas.height = this.size*2 * ratio;
     this.context.scale(ratio, ratio);
-    this.linebuffer = this.context.getImageData(0, 0, this.el.width, this.el.height);
+    this.linebuffer = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height);
     for (var asm_js_size=4096; asm_js_size < (1<<30) && asm_js_size < this.linebuffer.data.length; asm_js_size *= 2)
         ;
     this.linebuf8  = new ArrayBuffer(asm_js_size);
@@ -118,10 +118,10 @@ Mandel.prototype.zoom = function(center_x, center_y, zoom) {
 
 Mandel.prototype.line = function(y) {
     this.fast.line(this.r.min,
-                   y/this.el.height * this.i.span + this.i.min,
-                   this.r.span / this.el.width, 0,
-                   this.el.width * y, 1,
-                   this.el.width);
+                   y/this.canvas.height * this.i.span + this.i.min,
+                   this.r.span / this.canvas.width, 0,
+                   this.canvas.width * y, 1,
+                   this.canvas.width);
 }
 
 Mandel.prototype.blit = function() {
@@ -139,9 +139,9 @@ Mandel.prototype.draw = function() {
         do {
             this.line(y);
             y++;
-        } while (y < this.el.height && Date.now() - start < 100);
+        } while (y < this.canvas.height && Date.now() - start < 100);
         this.blit();
-        if (y < this.el.height)
+        if (y < this.canvas.height)
             this.drawer = setTimeout(iter, 0);
         else {
             console.log(Date.now() - this.start);
