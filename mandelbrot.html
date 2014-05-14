@@ -17,7 +17,7 @@
     <div id="mandelbrot-size">
       <canvas id="mandelbrot"></canvas>
     </div>
-    <script>
+    <script id="mandelbrot-asmjs" type="text/javascript">
 
 function Mandelbrot(stdlib, foreign, heap) {
     "use asm";
@@ -149,8 +149,11 @@ Mandel.prototype.draw = function() {
     }.bind(this);
     iter();
 }
+</script>
 
-var mandel = new Mandel(document.getElementById("mandelbrot"));
+
+    <script id="main" type="text/javascript">
+var mandel = new MandelGL(document.getElementById("mandelbrot"));
 window.onresize = function() {
     var sizer = document.getElementById("mandelbrot-size");
     mandel.resize(sizer.clientWidth,
